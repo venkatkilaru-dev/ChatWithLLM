@@ -135,14 +135,11 @@
     [Inject] IHttpClientFactory HttpClientFactory { get; set; }
     [Inject] IConfiguration Config { get; set; }
 
-    protected override async Task OnInitializedAsync()
-    {
-        if (File.Exists(historyFile))
-        {
-            var json = await File.ReadAllTextAsync(historyFile);
-            history = JsonSerializer.Deserialize<List<ChatHistoryItem>>(json) ?? new();
-        }
-    }
+     protected override Task OnInitializedAsync()
+{
+    history = new List<ChatHistoryItem>();
+    return Task.CompletedTask;
+}
 
     private async Task SendMessage()
     {
