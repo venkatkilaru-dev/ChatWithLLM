@@ -1,0 +1,238 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using System.Text.Json
+@using ChatWithLLM.Models
+@using System.IO
+<script>
+    window.scrollChatToBottom = function () {
+        const el = document.getElementById("chatContainer");
+        if (el) el.scrollTop = el.scrollHeight;
+    };
+    window.focusChatInput = function () { 
+        const el = document.getElementById("chatInput"); 
+        if (el) el.focus(); 
+        };
+</script>
+
+<div class="chat-wrapper">
+
+    <h3 class="text-center mb-3">Chat with LLM</h3>
+
+    <!-- CHAT WINDOW -->
+    <div class="chat-container" id="chatContainer">
+
+        @foreach (var item in history)
+        {
+            <!-- USER MESSAGE -->
+            <div class="chat-message user">
+                <div class="bubble user-bubble">
+                    @item.UserMessage
+                </div>
+                <div class="timestamp">@item.Timestamp.ToString("g")</div>
+            </div>
+
+            <!-- AI MESSAGE -->
+            <div class="chat-message ai">
+                <div class="bubble ai-bubble">
+                    @((MarkupString)item.AiResponse)
+                </div>
+                <div class="timestamp">@item.Timestamp.ToString("g")</div>
+            </div>
+        }
+    </div>
+
+    <!-- INPUT BAR -->
+    <div class="chat-input-container">
+<input @bind="userMessage"
+       @onkeydown="HandleKeyPress"
+       id="chatInput"
+       placeholder="Type a message..."
+       class="form-control" />
+
+        <button class="btn btn-primary mt-2 w-100" @onclick="SendMessage">Send</button>
+    </div>
+
+</div>
+
+<style>
+    .chat-wrapper {
+        display: flex;
+        flex-direction: column;
+        height: 90vh;
+        padding-bottom: 80px;
+    }
+
+    .chat-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        background: #fafafa;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+    }
+
+    .chat-message {
+        display: flex;
+        flex-direction: column;
+        max-width: 70%;
+    }
+
+    .chat-message.user {
+        align-self: flex-end;
+        text-align: right;
+    }
+
+    .chat-message.ai {
+        align-self: flex-start;
+        text-align: left;
+    }
+
+    .bubble {
+        padding: 12px 16px;
+        border-radius: 14px;
+        font-size: 15px;
+        line-height: 1.5;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .user-bubble {
+        background-color: #007bff;
+        color: white;
+        border-bottom-right-radius: 0;
+    }
+
+    .ai-bubble {
+        background-color: #f1f1f1;
+        color: #333;
+        border-bottom-left-radius: 0;
+    }
+
+    .timestamp {
+        font-size: 11px;
+        color: gray;
+        margin-top: 4px;
+    }
+
+    .chat-input-container {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 15px;
+        background: white;
+        border-top: 1px solid #ddd;
+    }
+</style>
+
+@code {
+    private string userMessage = "";
+    private List<ChatHistoryItem> history = new();
+    private string historyFile => Path.Combine("wwwroot", "chatHistory.json");
+
+    [Inject] IHttpClientFactory HttpClientFactory { get; set; }
+    [Inject] IConfiguration Config { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (File.Exists(historyFile))
+        {
+            var json = await File.ReadAllTextAsync(historyFile);
+            history = JsonSerializer.Deserialize<List<ChatHistoryItem>>(json) ?? new();
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(userMessage))
+            return;
+
+        var apiKey = Config["GroqApiKey"];
+        var client = HttpClientFactory.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
+
+        // Build conversation memory
+        var messages = new List<object>
+        {
+            new {
+                role = "system",
+                content = @"
+You are an AI that ALWAYS returns beautifully formatted HTML.
+Use headings, bullet lists, spacing, and conversational tone.
+Never use markdown."
+            }
+        };
+
+        foreach (var h in history)
+        {
+            messages.Add(new { role = "user", content = h.UserMessage });
+            messages.Add(new { role = "assistant", content = h.AiResponse });
+        }
+
+        messages.Add(new { role = "user", content = userMessage });
+
+        var request = new
+        {
+            model = "llama-3.1-8b-instant",
+            messages = messages
+        };
+
+        var response = await client.PostAsJsonAsync(
+            "https://api.groq.com/openai/v1/chat/completions",
+            request
+        );
+
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        string aiResponse = "";
+
+        if (json.TryGetProperty("choices", out var choices))
+        {
+            aiResponse = choices[0]
+                .GetProperty("message")
+                .GetProperty("content")
+                .GetString();
+        }
+        else
+        {
+            aiResponse = "<p><strong>Error:</strong> Unable to get response.</p>";
+        }
+
+        // Save to history
+        var entry = new ChatHistoryItem
+        {
+            UserMessage = userMessage,
+            AiResponse = aiResponse,
+            Timestamp = DateTime.Now
+        };
+
+        history.Add(entry);
+
+        var updatedJson = JsonSerializer.Serialize(history, new JsonSerializerOptions { WriteIndented = true });
+        await File.WriteAllTextAsync(historyFile, updatedJson);
+
+        userMessage = "";
+
+        await ScrollToBottom();
+        await JS.InvokeVoidAsync("focusChatInput");
+
+    }
+
+    private async Task ScrollToBottom()
+    {
+        await Task.Delay(50);
+        await JS.InvokeVoidAsync("scrollChatToBottom");
+    }
+
+    [Inject] IJSRuntime JS { get; set; }
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+{
+    if (e.Key == "Enter" && !e.ShiftKey)
+    {
+        await SendMessage();
+    }
+}
+
+}
