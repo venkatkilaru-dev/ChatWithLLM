@@ -10,10 +10,11 @@
 using System;
 using System.Reflection;
 
+[assembly: Microsoft.Extensions.Configuration.UserSecrets.UserSecretsIdAttribute("25f7b26d-cd2d-4126-bfd0-a5d6d7ac7d52")]
 [assembly: System.Reflection.AssemblyCompanyAttribute("ChatWithLLM")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5bf0ca5d5247ef11edaa12e225e7fb4d3b68dc81")]
 [assembly: System.Reflection.AssemblyProductAttribute("ChatWithLLM")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ChatWithLLM")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
