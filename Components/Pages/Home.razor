@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/"
 @rendermode InteractiveServer
 @using System.Text.Json
 @using ChatWithLLM.Models
@@ -131,11 +131,12 @@
     private string userMessage = "";
     private List<ChatHistoryItem> history = new();
     private string historyFile => Path.Combine("wwwroot", "chatHistory.json");
+    private bool shouldScroll = false;
 
     [Inject] IHttpClientFactory HttpClientFactory { get; set; }
     [Inject] IConfiguration Config { get; set; }
 
-     protected override Task OnInitializedAsync()
+   protected override Task OnInitializedAsync()
 {
     history = new List<ChatHistoryItem>();
     return Task.CompletedTask;
@@ -211,17 +212,20 @@ Never use markdown."
         await File.WriteAllTextAsync(historyFile, updatedJson);
 
         userMessage = "";
-
-        await ScrollToBottom();
+        shouldScroll = true;
         await JS.InvokeVoidAsync("focusChatInput");
 
-    }
 
-    private async Task ScrollToBottom()
+    }
+protected override async Task OnAfterRenderAsync(bool firstRender)
+{
+    if (shouldScroll)
     {
-        await Task.Delay(50);
+        shouldScroll = false;
         await JS.InvokeVoidAsync("scrollChatToBottom");
     }
+}
+
 
     [Inject] IJSRuntime JS { get; set; }
     private async Task HandleKeyPress(KeyboardEventArgs e)
@@ -231,5 +235,6 @@ Never use markdown."
         await SendMessage();
     }
 }
+
 
 }
