@@ -2,6 +2,8 @@ ChatWithLLM
 A simple Blazor Server application that lets you chat with an LLM (Groq API).
 Messages appear in the UI during the session, and chat history is saved locally on the user’s machine.
 
+check the published website : [https://chatwithllm-1r97.onrender.com/](url)
+
 🚀 Features
 Chat with an LLM using Groq’s API
 
